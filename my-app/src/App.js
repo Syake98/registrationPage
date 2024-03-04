@@ -1,110 +1,112 @@
-import { useRef, useState } from 'react';
-import './App.module.css';
+import { useForm } from 'react-hook-form';
+import * as yup from 'yup';
+import { yupResolver } from '@hookform/resolvers/yup';
 import styles from './App.module.css';
-import { useStore } from './hooks/useStore';
+import { useRef } from 'react';
 
 export const App = () => {
-	const { getUserInfo, postUserInfo, resetFields } = useStore();
-	const { email, password, repeatPassword } = getUserInfo();
-	const [error, setError] = useState(null);
 	const submitButtonRef = useRef(null);
-	const inputEmailRef = useRef(null);
-	const inputPasswordRef = useRef(null);
-	const inputRepeatPasswordRef = useRef(null);
+	const fieldScheme = yup.object().shape({
+		email: yup
+			.string()
+			.required('Данное поле необходимо заполнить!')
+			.matches(/^[\w]*@[a-z]*.[a-z]{2,3}$/, 'Некорректный email'),
+		password: yup
+			.string()
+			.required('Данное поле необходимо заполнить!')
+			.matches(
+				/^[\w_]*$/,
+				'Некорректный пароль. Разрешены латинские символы, цифры, нижнее подчёркивание',
+			)
+			.min(8, 'Пароль должен содержать не менее 8 символов'),
+		repeatPassword: yup
+			.string()
+			.required('Данное поле необходимо заполнить!')
+			.test(
+				'match',
+				'Пароли не совпадает',
+				(value) => value === getValues('password'),
+			),
+	});
+	const {
+		register,
+		handleSubmit,
+		reset,
+		formState: { errors },
+		getValues,
+	} = useForm({
+		defaultValues: {
+			email: '',
+			password: '',
+			repeatPassword: '',
+		},
+		resolver: yupResolver(fieldScheme),
+		mode: 'onTouched',
+	});
 
-	const sendData = (form) => {
-		console.log(form);
+	const errorsFromFields = {
+		email: errors.email?.message,
+		password: errors.password?.message,
+		repeatPassword: errors.repeatPassword?.message,
 	};
 
-	const onSubmit = (event) => {
-		event.preventDefault();
-		if (
-			inputEmailRef.current?.value &&
-			inputPasswordRef.current?.value &&
-			inputRepeatPasswordRef.current?.value &&
-			inputPasswordRef.current?.value === inputRepeatPasswordRef.current?.value &&
-			error === null
-		) {
-			sendData(getUserInfo());
-			resetFields();
-			return;
-		}
-		setError('Пароли не совпадают');
+	const onSubmit = (formData) => {
+		console.log('formData', formData);
+		reset();
 	};
 
-	const onChange = (e) => {
-		postUserInfo(e.target.name, e.target.value);
-		if (
-			e.target.name === 'repeatPassword' &&
-			inputRepeatPasswordRef.current.value === password
-		) {
-			submitButtonRef.current.focus();
-		}
-	};
-
-	const onBlur = (e) => {
-		let error = null;
-		if (
-			e.target.type === 'email' &&
-			!/^[\w]*@[a-z]*.[a-z]{2,3}$/.test(e.target.value)
-		) {
-			error = 'Некорректный email';
-		} else if (e.target.type === 'password' && e.target.value.length < 8) {
-			error = 'Пароль должен содержать не менее 8 символов';
-		} else if (e.target.type === 'password' && !/^[\w_]{8,}$/.test(e.target.value)) {
-			error =
-				'Некорректный пароль. Разрешены латинские символы, цифры, нижнее подчёркивание';
-		}
-		setError(error);
-	};
-
-	const onReset = () => {
-		resetFields();
-		setError(null);
+	const setFocusOnButton = {
+		onChange: (e) => {
+			if (e.target.value === getValues('password')) {
+				console.log(submitButtonRef.current)
+				return submitButtonRef.current.focus();
+			}
+		},
 	};
 
 	return (
-		<div className={styles.form}>
-			<form onSubmit={onSubmit}>
-				<div className={styles.title}>Регистрация</div>
-				{error && <div className={styles.errorMessage}>{error}</div>}
-				<input
-					className={styles.input}
-					ref={inputEmailRef}
-					name="email"
-					type="email"
-					placeholder="Введите email"
-					value={email}
-					onChange={onChange}
-					onBlur={onBlur}
-				/>
-				<input
-					className={styles.input}
-					ref={inputPasswordRef}
-					name="password"
-					type="password"
-					placeholder="Введите пароль"
-					value={password}
-					onChange={onChange}
-					onBlur={onBlur}
-				/>
-				<input
-					className={styles.input}
-					ref={inputRepeatPasswordRef}
-					name="repeatPassword"
-					type="password"
-					placeholder="Повторите пароль"
-					value={repeatPassword}
-					onChange={onChange}
-					onBlur={onBlur}
-				/>
-				<button type="button" className={styles.button} onClick={onReset}>
-					Сбросить данные
-				</button>
-				<button type="submit" className={styles.button} ref={submitButtonRef}>
-					Зарегистрироваться
-				</button>
-			</form>
-		</div>
+		<form className={styles.form} onSubmit={handleSubmit(onSubmit)}>
+			<div className={styles.title}>Регистрация</div>
+			<input
+				className={styles.input}
+				type="email"
+				placeholder="Введите email"
+				{...register('email')}
+			/>
+			{errorsFromFields.email && (
+				<div className={styles.errorMessage}>{errorsFromFields.email}</div>
+			)}
+			<input
+				className={styles.input}
+				type="password"
+				placeholder="Введите password"
+				{...register('password')}
+			/>
+			{errorsFromFields.password && (
+				<div className={styles.errorMessage}>{errorsFromFields.password}</div>
+			)}
+			<input
+				className={styles.input}
+				type="password"
+				placeholder="Повторите пароль"
+				{...register('repeatPassword', setFocusOnButton)}
+			/>
+			{errorsFromFields.repeatPassword && (
+				<div className={styles.errorMessage}>
+					{errorsFromFields.repeatPassword}
+				</div>
+			)}
+			<button type="button" className={styles.button} onClick={() => reset()}>
+				Сбросить данные
+			</button>
+
+			<button
+				ref={submitButtonRef}
+				type="submit"
+				className={styles.button}
+			>
+				Зарегистрироваться
+			</button>
+		</form>
 	);
 };
